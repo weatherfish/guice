@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,25 +24,22 @@ import com.google.inject.CreationException;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.matcher.Matchers;
-
+import java.lang.reflect.Modifier;
+import javax.inject.Inject;
 import junit.framework.TestCase;
 
-import java.lang.reflect.Modifier;
-
-import javax.inject.Inject;
-
-/**
- * @author jessewilson@google.com (Jesse Wilson)
- */
+/** @author jessewilson@google.com (Jesse Wilson) */
 public class LineNumbersTest extends TestCase {
 
   public void testLineNumbers() {
     try {
-      Guice.createInjector(new AbstractModule() {
-        protected void configure() {
-          bind(A.class);
-        }
-      });
+      Guice.createInjector(
+          new AbstractModule() {
+            @Override
+            protected void configure() {
+              bind(A.class);
+            }
+          });
       fail();
     } catch (CreationException expected) {
       assertContains(
@@ -55,25 +52,33 @@ public class LineNumbersTest extends TestCase {
   }
 
   static class A {
-    @Inject A(B b) {}
+    @Inject
+    A(B b) {}
   }
+
   public interface B {}
 
   /*if[AOP]*/
   public void testCanHandleLineNumbersForGuiceGeneratedClasses() {
     try {
-      Guice.createInjector(new AbstractModule() {
-        protected void configure() {
-          bindInterceptor(Matchers.only(A.class), Matchers.any(),
-              new org.aopalliance.intercept.MethodInterceptor() {
-                public Object invoke(org.aopalliance.intercept.MethodInvocation methodInvocation) {
-                  return null;
-                }
-              });
+      Guice.createInjector(
+          new AbstractModule() {
+            @Override
+            protected void configure() {
+              bindInterceptor(
+                  Matchers.only(A.class),
+                  Matchers.any(),
+                  new org.aopalliance.intercept.MethodInterceptor() {
+                    @Override
+                    public Object invoke(
+                        org.aopalliance.intercept.MethodInvocation methodInvocation) {
+                      return null;
+                    }
+                  });
 
-          bind(A.class);
-        }
-      });
+              bind(A.class);
+            }
+          });
       fail();
     } catch (CreationException expected) {
       assertContains(
@@ -95,19 +100,27 @@ public class LineNumbersTest extends TestCase {
     Class<?> generate() {
       org.objectweb.asm.ClassWriter cw =
           new org.objectweb.asm.ClassWriter(org.objectweb.asm.ClassWriter.COMPUTE_MAXS);
-      cw.visit(org.objectweb.asm.Opcodes.V1_5,
-          Modifier.PUBLIC, name, null,
-          org.objectweb.asm.Type.getInternalName(Object.class), null);
+      cw.visit(
+          org.objectweb.asm.Opcodes.V1_5,
+          Modifier.PUBLIC,
+          name,
+          null,
+          org.objectweb.asm.Type.getInternalName(Object.class),
+          null);
 
-      String sig = "("+org.objectweb.asm.Type.getDescriptor(B.class)+")V";
+      String sig = "(" + org.objectweb.asm.Type.getDescriptor(B.class) + ")V";
 
-      org.objectweb.asm.MethodVisitor mv = cw.visitMethod(Modifier.PUBLIC, "<init>", sig, null, null);
+      org.objectweb.asm.MethodVisitor mv =
+          cw.visitMethod(Modifier.PUBLIC, "<init>", sig, null, null);
 
       mv.visitAnnotation(org.objectweb.asm.Type.getDescriptor(Inject.class), true);
       mv.visitCode();
       mv.visitVarInsn(org.objectweb.asm.Opcodes.ALOAD, 0);
-      mv.visitMethodInsn(org.objectweb.asm.Opcodes.INVOKESPECIAL,
-          org.objectweb.asm.Type.getInternalName(Object.class), "<init>", "()V" );
+      mv.visitMethodInsn(
+          org.objectweb.asm.Opcodes.INVOKESPECIAL,
+          org.objectweb.asm.Type.getInternalName(Object.class),
+          "<init>",
+          "()V");
       mv.visitInsn(org.objectweb.asm.Opcodes.RETURN);
       mv.visitMaxs(0, 0);
       mv.visitEnd();
@@ -121,11 +134,13 @@ public class LineNumbersTest extends TestCase {
 
   public void testUnavailableByteCodeShowsUnknownSource() {
     try {
-      Guice.createInjector(new AbstractModule() {
-        protected void configure() {
-          bind(new GeneratingClassLoader().generate());
-        }
-      });
+      Guice.createInjector(
+          new AbstractModule() {
+            @Override
+            protected void configure() {
+              bind(new GeneratingClassLoader().generate());
+            }
+          });
       fail();
     } catch (CreationException expected) {
       assertContains(
@@ -136,15 +151,18 @@ public class LineNumbersTest extends TestCase {
           getDeclaringSourcePart(getClass()));
     }
   }
-  
+
   public void testGeneratedClassesCanSucceed() {
     final Class<?> generated = new GeneratingClassLoader().generate();
-    Injector injector = Guice.createInjector(new AbstractModule() {
-      protected void configure() {
-        bind(generated);
-        bind(B.class).toInstance(new B() {});
-      }
-    });
+    Injector injector =
+        Guice.createInjector(
+            new AbstractModule() {
+              @Override
+              protected void configure() {
+                bind(generated);
+                bind(B.class).toInstance(new B() {});
+              }
+            });
     Object instance = injector.getInstance(generated);
     assertEquals(instance.getClass(), generated);
   }

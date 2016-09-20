@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2010 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,11 @@ import java.util.Map;
 
 /**
  * Abstract implementation for all servlet module bindings
- * 
+ *
  * @author sameb@google.com (Sam Berlin)
  */
 class AbstractServletModuleBinding<T> implements ServletModuleBinding {
-  
+
   private final Map<String, String> initParams;
   private final T target;
   private final UriPatternMatcher patternMatcher;
@@ -36,10 +36,12 @@ class AbstractServletModuleBinding<T> implements ServletModuleBinding {
     this.patternMatcher = patternMatcher;
   }
 
+  @Override
   public Map<String, String> getInitParams() {
     return initParams;
   }
 
+  @Override
   public String getPattern() {
     return patternMatcher.getOriginalPattern();
   }
@@ -48,12 +50,13 @@ class AbstractServletModuleBinding<T> implements ServletModuleBinding {
     return target;
   }
 
+  @Override
   public UriPatternType getUriPatternType() {
     return patternMatcher.getPatternType();
   }
-  
+
+  @Override
   public boolean matchesUri(String uri) {
     return patternMatcher.matches(uri);
   }
-
 }

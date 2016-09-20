@@ -18,8 +18,6 @@ import com.google.inject.internal.CycleDetectingLock.CycleDetectingLockFactory;
 import com.google.inject.spi.Dependency;
 import com.google.inject.spi.DependencyAndSource;
 import com.google.inject.spi.Message;
-
-import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,48 +26,36 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * One instance per {@link Injector}. Also see {@code @}{@link Singleton}.
  *
- * Introduction from the author:
- * Implementation of this class seems unreasonably complicated at the first sight.
- * I fully agree with you, that the beast below is very complex
- * and it's hard to reason on how does it work or not.
- * Still I want to assure you that hundreds(?) of hours were thrown
- * into making this code simple, while still maintaining Singleton contract.
+ * <p>Introduction from the author: Implementation of this class seems unreasonably complicated at
+ * the first sight. I fully agree with you, that the beast below is very complex and it's hard to
+ * reason on how does it work or not. Still I want to assure you that hundreds(?) of hours were
+ * thrown into making this code simple, while still maintaining Singleton contract.
  *
- * Anyway, why is it so complex? Singleton scope does not seem to be that unique.
- * 1) Guice has never truly expected to be used in multi threading environment
- *    with many Injectors working alongside each other. There is almost no
- *    code with Guice that propagates state between threads. And Singleton
- *    scope is The exception.
- * 2) Guice supports circular dependencies and thus manages proxy objects.
- *    There is no interface that allows user defined Scopes to create proxies,
- *    it is expected to be done by Guice. Singleton scope needs to be
- *    able to detect circular dependencies spanning several threads,
- *    therefore Singleton scope needs to be able to create these proxies.
- * 3) To make things worse, Guice has a very tricky definition for a binding
- *    resolution when Injectors are in in a parent/child relationship.
- *    And Scope does not have access to this information by design,
- *    the only real action that Scope can do is to call or not to call a creator.
- * 4) There is no readily available code in Guice that can detect a potential
- *    deadlock, and no code for handling dependency cycles spanning several threads.
- *    This is significantly harder as all the dependencies in a thread at runtime
- *    can be represented with a list, where in a multi threaded environment
- *    we have more complex dependency trees.
- * 5) Guice has a pretty strong contract regarding Garbage Collection,
- *    which often prevents us from linking objects directly.
- *    So simple domain specific code can not be written and intermediary
- *    id objects need to be managed.
- * 6) Guice is relatively fast and we should not make things worse.
- *    We're trying our best to optimize synchronization for speed and memory.
- *    Happy path should be almost as fast as in a single threaded solution
- *    and should not take much more memory.
- * 7) Error message generation in Guice was not meant to be used like this and to work around
- *    its APIs we need a lot of code. Additional complexity comes from inherent data races
- *    as message is only generated when failure occurs on proxy object generation.
- * Things get ugly pretty fast.
+ * <p>Anyway, why is it so complex? Singleton scope does not seem to be that unique. 1) Guice has
+ * never truly expected to be used in multi threading environment with many Injectors working
+ * alongside each other. There is almost no code with Guice that propagates state between threads.
+ * And Singleton scope is The exception. 2) Guice supports circular dependencies and thus manages
+ * proxy objects. There is no interface that allows user defined Scopes to create proxies, it is
+ * expected to be done by Guice. Singleton scope needs to be able to detect circular dependencies
+ * spanning several threads, therefore Singleton scope needs to be able to create these proxies. 3)
+ * To make things worse, Guice has a very tricky definition for a binding resolution when Injectors
+ * are in in a parent/child relationship. And Scope does not have access to this information by
+ * design, the only real action that Scope can do is to call or not to call a creator. 4) There is
+ * no readily available code in Guice that can detect a potential deadlock, and no code for handling
+ * dependency cycles spanning several threads. This is significantly harder as all the dependencies
+ * in a thread at runtime can be represented with a list, where in a multi threaded environment we
+ * have more complex dependency trees. 5) Guice has a pretty strong contract regarding Garbage
+ * Collection, which often prevents us from linking objects directly. So simple domain specific code
+ * can not be written and intermediary id objects need to be managed. 6) Guice is relatively fast
+ * and we should not make things worse. We're trying our best to optimize synchronization for speed
+ * and memory. Happy path should be almost as fast as in a single threaded solution and should not
+ * take much more memory. 7) Error message generation in Guice was not meant to be used like this
+ * and to work around its APIs we need a lot of code. Additional complexity comes from inherent data
+ * races as message is only generated when failure occurs on proxy object generation. Things get
+ * ugly pretty fast.
  *
  * @see #scope(Key, Provider)
  * @see CycleDetectingLock
- *
  * @author timofeyb (Timothy Basanov)
  */
 public class SingletonScope implements Scope {
@@ -78,29 +64,10 @@ public class SingletonScope implements Scope {
   private static final Object NULL = new Object();
 
   /**
-   * SingletonScope needs the owning injector's thread-specific InternalContext object during
-   * singleton instantiation, to look up type information on the singleton instance, and to
-   * determine whether circular proxy creation is enabled within InjectorOptions.
-   *
-   * For additional complications: the owning injector's InternalContext can change between
-   * provider creation and actually instantiating the singleton, via calls to
-   * {@link InjectorImpl#callInContext}.
-   *
-   * A thread-specific reference to the owning injector is stored here, so that the singleton
-   * provider can access the correct InternalContext for the given thread during provider.get().
-   *
-   * The ThreadLocal stores WeakReference, so that the references here and inside the singleton
-   * provider do not interfere with garbage collection and post-collection cleanup of child
-   * injectors, happening in {@link WeakKeySet}.
-   */
-  static final ThreadLocal<WeakReference<InjectorImpl>> currentInjector =
-      new ThreadLocal<WeakReference<InjectorImpl>>();
-
-  /**
-   * A map of thread running singleton instantiation, to the InternalContext that is relevant
-   * to the singleton being instantiated. In the case of a multithreaded circular dependency in
-   * singleton instantiation, this map is used to provide an extensive error message that contains
-   * information on all of the threads involved in the circular dependency.
+   * A map of thread running singleton instantiation, to the InternalContext that is relevant to the
+   * singleton being instantiated. In the case of a multithreaded circular dependency in singleton
+   * instantiation, this map is used to provide an extensive error message that contains information
+   * on all of the threads involved in the circular dependency.
    */
   private static final ConcurrentMap<Thread, InternalContext> internalContextsMap =
       Maps.newConcurrentMap();
@@ -109,37 +76,34 @@ public class SingletonScope implements Scope {
    * Allows us to detect when circular proxies are necessary. It's only used during singleton
    * instance initialization, after initialization direct access through volatile field is used.
    *
-   * NB: Factory uses {@link Key}s as a user locks ids, different injectors can
-   * share them. Cycles are detected properly as cycle detection does not rely on user locks ids,
-   * but error message generated could be less than ideal.
-   *
-   * TODO(user): we may use one factory per injector tree for optimization reasons
+   * <p>NB: Factory uses {@link Key}s as a user locks ids, different injectors can share them.
+   * Cycles are detected properly as cycle detection does not rely on user locks ids, but error
+   * message generated could be less than ideal.
    */
+  // TODO(user): we may use one factory per injector tree for optimization reasons
   private static final CycleDetectingLockFactory<Key<?>> cycleDetectingLockFactory =
       new CycleDetectingLockFactory<Key<?>>();
 
   /**
-   * Provides singleton scope with the following properties:
-   * - creates no more than one instance per Key as a creator is used no more than once,
-   * - result is cached and returned quickly on subsequent calls,
-   * - exception in a creator is not treated as instance creation and is not cached,
-   * - creates singletons in parallel whenever possible,
-   * - waits for dependent singletons to be created even across threads and when dependencies
-   *   are shared as long as no circular dependencies are detected,
-   * - returns circular proxy only when circular dependencies are detected,
-   * - aside from that, blocking synchronization is only used for proxy creation and initialization,
+   * Provides singleton scope with the following properties: - creates no more than one instance per
+   * Key as a creator is used no more than once, - result is cached and returned quickly on
+   * subsequent calls, - exception in a creator is not treated as instance creation and is not
+   * cached, - creates singletons in parallel whenever possible, - waits for dependent singletons to
+   * be created even across threads and when dependencies are shared as long as no circular
+   * dependencies are detected, - returns circular proxy only when circular dependencies are
+   * detected, - aside from that, blocking synchronization is only used for proxy creation and
+   * initialization,
+   *
    * @see CycleDetectingLockFactory
    */
   @Override
   public <T> Provider<T> scope(final Key<T> key, final Provider<T> creator) {
     /**
-     * Locking strategy:
-     * - volatile instance: double-checked locking for quick exit when scope is initialized,
-     * - constructionContext: manipulations with proxies list or instance initialization
-     * - creationLock: singleton instance creation,
-     *   -- allows to guarantee only one instance per singleton,
-     *   -- special type of a lock, that prevents potential deadlocks,
-     *   -- guards constructionContext for all operations except proxy creation
+     * Locking strategy: - volatile instance: double-checked locking for quick exit when scope is
+     * initialized, - constructionContext: manipulations with proxies list or instance
+     * initialization - creationLock: singleton instance creation, -- allows to guarantee only one
+     * instance per singleton, -- special type of a lock, that prevents potential deadlocks, --
+     * guards constructionContext for all operations except proxy creation
      */
     return new Provider<T>() {
       /**
@@ -161,7 +125,16 @@ public class SingletonScope implements Scope {
        * The singleton provider needs a reference back to the injector, in order to get ahold
        * of InternalContext during instantiation.
        */
-      final InjectorImpl injector = currentInjector.get().get();
+      /* @Nullable */ final InjectorImpl injector;
+
+      {
+        // If we are getting called by Scoping
+        if (creator instanceof ProviderToInternalFactoryAdapter) {
+          injector = ((ProviderToInternalFactoryAdapter) creator).getInjector();
+        } else {
+          injector = null;
+        }
+      }
 
       @SuppressWarnings("DoubleCheckedLocking")
       @Override
@@ -175,9 +148,15 @@ public class SingletonScope implements Scope {
           // dependency error, we can use the InternalContext objects to create a complete
           // error message.
           final Thread currentThread = Thread.currentThread();
-          final InternalContext context = injector.getLocalContext();
-          final InternalContext previousContext = internalContextsMap.get(currentThread);
-          internalContextsMap.put(currentThread, context);
+          // Handle injector being null, which can happen when users call Scoping.scope themselves
+          final InternalContext context = injector == null ? null : injector.getLocalContext();
+          final InternalContext previousContext;
+          if (context != null) {
+            previousContext = internalContextsMap.get(currentThread);
+            internalContextsMap.put(currentThread, context);
+          } else {
+            previousContext = null;
+          }
 
           try {
             // acquire lock for current binding to initialize an instance
@@ -211,7 +190,8 @@ public class SingletonScope implements Scope {
                     }
                   } else {
                     // safety assert in case instance was initialized
-                    Preconditions.checkState(instance == providedNotNull,
+                    Preconditions.checkState(
+                        instance == providedNotNull,
                         "Singleton is called recursively returning different results");
                   }
                 }
@@ -227,31 +207,41 @@ public class SingletonScope implements Scope {
                 creationLock.unlock();
               }
             } else {
+              if (context == null) {
+                throw new ProvisionException(
+                    ImmutableList.of(
+                        createCycleDependenciesMessage(
+                            ImmutableMap.copyOf(internalContextsMap), locksCycle, null)));
+              }
               // potential deadlock detected, creation lock is not taken by this thread
               synchronized (constructionContext) {
                 // guarantee thread-safety for instance and proxies initialization
                 if (instance == null) {
                   // creating a proxy to satisfy circular dependency across several threads
-                  Dependency<?> dependency = Preconditions.checkNotNull(
-                      context.getDependency(), "internalContext.getDependency()");
+                  Dependency<?> dependency =
+                      Preconditions.checkNotNull(
+                          context.getDependency(), "internalContext.getDependency()");
                   Class<?> rawType = dependency.getKey().getTypeLiteral().getRawType();
 
                   try {
                     @SuppressWarnings("unchecked")
-                    T proxy = (T) constructionContext.createProxy(
-                        new Errors(), context.getInjectorOptions(), rawType);
+                    T proxy =
+                        (T)
+                            constructionContext.createProxy(
+                                new Errors(), context.getInjectorOptions(), rawType);
                     return proxy;
                   } catch (ErrorsException e) {
                     // best effort to create a rich error message
                     Message proxyCreationError =
                         Iterables.getOnlyElement(e.getErrors().getMessages());
-                    Message cycleDependenciesMessage = createCycleDependenciesMessage(
-                        ImmutableMap.copyOf(internalContextsMap),
-                        locksCycle,
-                        proxyCreationError);
+                    Message cycleDependenciesMessage =
+                        createCycleDependenciesMessage(
+                            ImmutableMap.copyOf(internalContextsMap),
+                            locksCycle,
+                            proxyCreationError);
                     // adding stack trace generated by us in addition to a standard one
-                    throw new ProvisionException(ImmutableList.of(
-                        cycleDependenciesMessage, proxyCreationError));
+                    throw new ProvisionException(
+                        ImmutableList.of(cycleDependenciesMessage, proxyCreationError));
                   }
                 }
               }
@@ -259,10 +249,12 @@ public class SingletonScope implements Scope {
           } finally {
             // restore internalContextsMap to previous state, in order to support nested singleton
             // construction spanning multiple injectors.
-            if (previousContext != null) {
-              internalContextsMap.put(currentThread, previousContext);
-            } else {
-              internalContextsMap.remove(currentThread);
+            if (context != null) {
+              if (previousContext != null) {
+                internalContextsMap.put(currentThread, previousContext);
+              } else {
+                internalContextsMap.remove(currentThread);
+              }
             }
           }
 
@@ -271,7 +263,8 @@ public class SingletonScope implements Scope {
 
           // caching volatile variable to minimize number of reads performed
           final Object initializedInstance = instance;
-          Preconditions.checkState(initializedInstance != null,
+          Preconditions.checkState(
+              initializedInstance != null,
               "Internal error: Singleton is not initialized contrary to our expectations");
           @SuppressWarnings("unchecked")
           T initializedTypedInstance = (T) initializedInstance;
@@ -285,24 +278,26 @@ public class SingletonScope implements Scope {
       }
 
       /**
-       * Helper method to create beautiful and rich error descriptions. Best effort and slow.
-       * Tries its best to provide dependency information from injectors currently available
-       * in a global internal context.
+       * Helper method to create beautiful and rich error descriptions. Best effort and slow. Tries
+       * its best to provide dependency information from injectors currently available in a global
+       * internal context.
        *
-       * <p>The main thing being done is creating a list of Dependencies involved into
-       * lock cycle across all the threads involved. This is a structure we're creating:
+       * <p>The main thing being done is creating a list of Dependencies involved into lock cycle
+       * across all the threads involved. This is a structure we're creating:
+       *
        * <pre>
        * { Current Thread, C.class, B.class, Other Thread, B.class, C.class, Current Thread }
        * To be inserted in the beginning by Guice: { A.class, B.class, C.class }
        * </pre>
-       * When we're calling Guice to create A and it fails in the deadlock while trying to
-       * create C, which is being created by another thread, which waits for B. List would
-       * be reversed before printing it to the end user.
+       *
+       * When we're calling Guice to create A and it fails in the deadlock while trying to create C,
+       * which is being created by another thread, which waits for B. List would be reversed before
+       * printing it to the end user.
        */
       private Message createCycleDependenciesMessage(
           Map<Thread, InternalContext> internalContextsMap,
           ListMultimap<Long, Key<?>> locksCycle,
-          Message proxyCreationError) {
+          /* @Nullable */ Message proxyCreationError) {
         // this is the main thing that we'll show in an error message,
         // current thread is populate by Guice
         List<Object> sourcesCycle = Lists.newArrayList();
@@ -373,11 +368,19 @@ public class SingletonScope implements Scope {
           // mentions that a tread is a part of a cycle
           sourcesCycle.add(lockedThread);
         }
-        return new Message(
-            sourcesCycle,
-            String.format("Encountered circular dependency spanning several threads. %s",
-                proxyCreationError.getMessage()),
-            null);
+        if (proxyCreationError != null) {
+          return new Message(
+              sourcesCycle,
+              String.format(
+                  "Encountered circular dependency spanning several threads. %s",
+                  proxyCreationError.getMessage()),
+              null);
+        } else {
+          return new Message(
+              sourcesCycle,
+              String.format("Encountered circular dependency spanning several threads."),
+              null);
+        }
       }
 
       @Override
@@ -387,7 +390,8 @@ public class SingletonScope implements Scope {
     };
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     return "Scopes.SINGLETON";
   }
 }
